@@ -59,9 +59,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final selectedEvents = _selectedDay != null ? _getEventsForDay(_selectedDay!) : [];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(''),
-      ),
+      // appBar: AppBar(
+      //   title: Text(''),
+      // ),
       body: Column(
         children: [
           TableCalendar<Event>( // 이벤트 타입 지정

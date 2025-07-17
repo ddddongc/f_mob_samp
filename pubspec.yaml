@@ -39,7 +39,11 @@ dependencies:
   google_maps_flutter: ^2.6.0
   #내부설정저장
   shared_preferences: ^2.2.2
-
+  #핸드폰 고유번호
+  device_info_plus: ^10.0.1
+  uuid: ^4.2.2
+  #위치 GPS
+  geolocator: ^14.0.2
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 enum MapDisplayState {
@@ -17,6 +18,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   late GoogleMapController mapController;
   final LatLng _center = const LatLng(36.34768, 127.3899);
+  final TextEditingController _keywordController = TextEditingController();
 
   MapDisplayState _mapDisplayState = MapDisplayState.initial;
   bool _isLocked = false; // 🔒 화면 잠금 상태
@@ -25,10 +27,27 @@ class _MapScreenState extends State<MapScreen> {
     mapController = controller;
   }
 
-  void _startMap() {
+  Future<void> _startMap() async {
+    final keyword = _keywordController.text.trim();
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('위치 권한이 필요합니다. 설정에서 권한을 허용해주세요.')),
+        );
+        return;
+      }
+    }
     setState(() {
       _mapDisplayState = MapDisplayState.running;
     });
+    // 키워드에 따라 위치공유 로직 분기 처리 가능
+    if (keyword.isEmpty) {
+      // 자기 위치만 표시하는 로직
+    } else {
+      // 같은 키워드 쓰는 사람들과 공유하는 로직
+    }
   }
 
   void _pauseMap() {
@@ -45,6 +64,7 @@ class _MapScreenState extends State<MapScreen> {
 
   void _stopMap() {
     setState(() {
+      _keywordController.clear();
       _mapDisplayState = MapDisplayState.initial;
       _isLocked = false; // 종료 시 잠금 해제
     });
@@ -54,6 +74,12 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _isLocked = !_isLocked;
     });
+  }
+
+  @override
+  void dispose() {
+    _keywordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -74,22 +100,34 @@ class _MapScreenState extends State<MapScreen> {
               myLocationButtonEnabled:
               !_isLocked && _mapDisplayState == MapDisplayState.running,
               zoomControlsEnabled: false,
-              scrollGesturesEnabled: !_isLocked &&
-                  _mapDisplayState == MapDisplayState.running,
-              zoomGesturesEnabled: !_isLocked &&
-                  _mapDisplayState == MapDisplayState.running,
-              rotateGesturesEnabled: !_isLocked &&
-                  _mapDisplayState == MapDisplayState.running,
-              tiltGesturesEnabled: !_isLocked &&
-                  _mapDisplayState == MapDisplayState.running,
+              scrollGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
+              zoomGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
+              rotateGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
+              tiltGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
             ),
 
           // 초기 상태 RUN 버튼
           if (_mapDisplayState == MapDisplayState.initial)
             Center(
-              child: ElevatedButton(
-                onPressed: _startMap,
-                child: const Text('RUN!!'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 250,
+                    child: TextField(
+                      controller: _keywordController,
+                      decoration: InputDecoration(
+                        hintText: '키워드입력(공백 자기위치만 표시)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _startMap,
+                    child: const Text('RUN!!'),
+                  ),
+                ],
               ),
             ),
 

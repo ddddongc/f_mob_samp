@@ -7,7 +7,14 @@ import 'home_screen.dart';
 import 'map_screen.dart';
 
 class BottomMenu extends StatefulWidget {
-  const BottomMenu({Key? key}) : super(key: key);
+  final ThemeMode themeMode;
+  final Function(ThemeMode) onThemeChanged;
+
+  const BottomMenu({
+    Key? key,
+    required this.themeMode,
+    required this.onThemeChanged,
+  }) : super(key: key);
 
   @override
   State<BottomMenu> createState() => _BottomMenuState();
@@ -16,15 +23,18 @@ class BottomMenu extends StatefulWidget {
 class _BottomMenuState extends State<BottomMenu> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    HomeScreen(),
-    MapScreen(),
-    ContentScreen(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final List<Widget> _screens = [
+      HomeScreen(),
+      MapScreen(),
+      ContentScreen(),
+      SettingsScreen(
+        currentMode: widget.themeMode,
+        onThemeChanged: widget.onThemeChanged,
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: Text(TABS[_selectedIndex].label),
@@ -38,18 +48,19 @@ class _BottomMenuState extends State<BottomMenu> {
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
         onTap: (index) {
           setState(() {
             _selectedIndex = index;
           });
         },
-        items: TABS.map((tab) => BottomNavigationBarItem(
+        items: TABS
+            .map((tab) => BottomNavigationBarItem(
           icon: Icon(tab.icon),
           label: tab.label,
-        )).toList(),
+        ))
+            .toList(),
       ),
     );
   }
 }
+

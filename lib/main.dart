@@ -1,39 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // 추가</selection>
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:runus_v1/page/bottom_menu.dart';
-import 'package:runus_v1/page/home_screen.dart'; // 예시: HomeScreen 경로
 
-void main() {
-  // WidgetsFlutterBinding.ensureInitialized(); // 이미 있다면 생략 가능
-  // await initializeDateFormatting(); // table_calendar 3.0.0 이상에서는 명시적 호출 불필요할 수 있음
-  // 만약 특정 로케일 형식이 필요하다면 추가
-  runApp(MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  final savedTheme = prefs.getString('themeMode') ?? 'system';
+
+  runApp(MyApp(initialThemeMode: _themeModeFromString(savedTheme)));
 }
 
-class MyApp extends StatelessWidget {
+ThemeMode _themeModeFromString(String mode) {
+  switch (mode) {
+    case 'light':
+      return ThemeMode.light;
+    case 'dark':
+      return ThemeMode.dark;
+    default:
+      return ThemeMode.system;
+  }
+}
+
+String _themeModeToString(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return 'light';
+    case ThemeMode.dark:
+      return 'dark';
+    default:
+      return 'system';
+  }
+}
+
+class MyApp extends StatefulWidget {
+  final ThemeMode initialThemeMode;
+
+  const MyApp({required this.initialThemeMode});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late ThemeMode _themeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode = widget.initialThemeMode;
+  }
+
+  void _updateTheme(ThemeMode newMode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('themeMode', _themeModeToString(newMode));
+    setState(() {
+      _themeMode = newMode;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '일정',
-      // 현지화 설정 시작
-      localizationsDelegates: [
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: _themeMode,
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate, // Cupertino 위젯을 사용한다면 추가
+        GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: [
-        const Locale('ko', 'KR'), // 한국어 지원
-        //const Locale('en', 'US'), // 영어 지원 (선택 사항)
-        // 다른 지원 언어 추가 가능
+      supportedLocales: const [
+        Locale('ko', 'KR'),
       ],
-      locale: const Locale('ko', 'KR'), // 기본 로케일을 한국어로 설정
-
-      // 현지화 설정 끝
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+      locale: const Locale('ko', 'KR'),
+      home: BottomMenu(
+        themeMode: _themeMode,
+        onThemeChanged: _updateTheme,
       ),
-      home: BottomMenu(), // 달력이 있는 화면
     );
   }
 }
-

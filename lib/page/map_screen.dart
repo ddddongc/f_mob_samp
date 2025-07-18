@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../util/log_service.dart';
 
 enum MapDisplayState {
   initial,
@@ -19,6 +23,8 @@ class _MapScreenState extends State<MapScreen> {
   late GoogleMapController mapController;
   final LatLng _center = const LatLng(36.34768, 127.3899);
   final TextEditingController _keywordController = TextEditingController();
+  StreamSubscription<Position>? _positionStream;
+  LatLng? _currentPosition;
 
   MapDisplayState _mapDisplayState = MapDisplayState.initial;
   bool _isLocked = false; // 🔒 화면 잠금 상태
@@ -48,18 +54,59 @@ class _MapScreenState extends State<MapScreen> {
     } else {
       // 같은 키워드 쓰는 사람들과 공유하는 로직
     }
+
+    //_startLocationStream();
+  }
+
+  void _startLocationStream() {
+    final locationSettings = const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 5, // 최소 5m 이동 시 위치 업데이트
+    );
+
+    _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
+        .listen((Position position) {
+      _currentPosition = LatLng(position.latitude, position.longitude);
+
+      print('[📍 위치 수신됨] lat=${position.latitude}, lng=${position.longitude}');
+      LogService.add('[📍 위치 수신됨] lat=${position.latitude}, lng=${position.longitude}');
+      if (_mapDisplayState == MapDisplayState.running && !_isLocked) {
+        if (mapController != null) {
+          mapController.animateCamera(
+            CameraUpdate.newLatLng(_currentPosition!),
+          );
+        } else {
+          print('[⚠️ mapController 아직 초기화되지 않음]');
+          LogService.add('[⚠️ mapController 아직 초기화되지 않음]');
+        }
+      }
+    });
+
+    print('[🟢 위치 스트림 시작]');
+  }
+  void _stopLocationStream() {
+    _positionStream?.cancel();
+    _positionStream = null;
+    print('[🔴 위치 스트림 중지]');
+    LogService.add('[🔴 위치 스트림 중지]');
   }
 
   void _pauseMap() {
     setState(() {
       _mapDisplayState = MapDisplayState.paused;
     });
+    _stopLocationStream(); // 위치 수신 중지
+    print('[⏸ 일시정지]');
+    LogService.add('[⏸ 일시정지]');
   }
 
   void _resumeMap() {
     setState(() {
       _mapDisplayState = MapDisplayState.running;
     });
+    _startLocationStream(); // 다시 시작
+    print('[▶ 재시작]');
+    LogService.add('[▶ 재시작]');
   }
 
   void _stopMap() {
@@ -68,12 +115,22 @@ class _MapScreenState extends State<MapScreen> {
       _mapDisplayState = MapDisplayState.initial;
       _isLocked = false; // 종료 시 잠금 해제
     });
+    _stopLocationStream(); // 위치 수신 종료
+    print('[⛔ 종료]');
+    LogService.add('[⛔ 종료]');
   }
 
   void _toggleLock() {
     setState(() {
       _isLocked = !_isLocked;
     });
+    if (_isLocked) {
+      print('[🔒 화면 잠금]');
+      LogService.add('[🔒 화면 잠금]');
+    } else {
+      print('[🔓 화면 잠금 해제]');
+      LogService.add('[🔓 화면 잠금 해제]');
+    }
   }
 
   @override

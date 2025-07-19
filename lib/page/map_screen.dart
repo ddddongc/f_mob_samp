@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import 'package:uuid/uuid.dart';
 import '../util/log_service.dart';
 
 enum MapDisplayState {
@@ -20,6 +20,10 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  final String _uuid = const Uuid().v4(); // 고유 UUID 생성
+  bool _isDirectionLocked = true; // GPS 방향 고정 여부
+  final List<LatLng> _pathPoints = []; // 위치 이동 경로 저장
+  final Set<Polyline> _polylines = {};
   late GoogleMapController mapController;
   final LatLng _center = const LatLng(36.34768, 127.3899);
   final TextEditingController _keywordController = TextEditingController();
@@ -55,13 +59,13 @@ class _MapScreenState extends State<MapScreen> {
       // 같은 키워드 쓰는 사람들과 공유하는 로직
     }
 
-    //_startLocationStream();
+    _startLocationStream();
   }
 
   void _startLocationStream() {
     final locationSettings = const LocationSettings(
       accuracy: LocationAccuracy.best,
-      distanceFilter: 5, // 최소 5m 이동 시 위치 업데이트
+      distanceFilter: 0, // 최소 5m 이동 시 위치 업데이트
     );
 
     _positionStream = Geolocator.getPositionStream(locationSettings: locationSettings)
@@ -70,19 +74,38 @@ class _MapScreenState extends State<MapScreen> {
 
       print('[📍 위치 수신됨] lat=${position.latitude}, lng=${position.longitude}');
       LogService.add('[📍 위치 수신됨] lat=${position.latitude}, lng=${position.longitude}');
-      if (_mapDisplayState == MapDisplayState.running && !_isLocked) {
-        if (mapController != null) {
-          mapController.animateCamera(
-            CameraUpdate.newLatLng(_currentPosition!),
-          );
-        } else {
-          print('[⚠️ mapController 아직 초기화되지 않음]');
-          LogService.add('[⚠️ mapController 아직 초기화되지 않음]');
-        }
+
+      // 경로에 추가
+      _pathPoints.add(_currentPosition!);
+      _polylines.clear();
+      _polylines.add(
+        Polyline(
+          polylineId: const PolylineId("path"),
+          color: Colors.red, // 혼자면 빨간색
+          width: 4,
+          points: _pathPoints,
+        ),
+      );
+
+      // ✅ 카메라는 계속 따라가야 함
+      if (_mapDisplayState == MapDisplayState.running && mapController != null) {
+        final cameraPosition = CameraPosition(
+          target: _currentPosition!,
+          zoom: 14.0,
+          bearing: _isDirectionLocked ? position.heading : 0.0, // 🔁 방향 반영
+          tilt: 0, // 또는 30.0 주면 더 뚜렷하게 회전 감지됨
+        );
+        mapController.animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
       }
+
+      // ✅ UI 갱신은 항상 동작
+      print('📍 heading = ${position.heading}');
+      LogService.add('📍 heading = ${position.heading}');
+      setState(() {});
     });
 
     print('[🟢 위치 스트림 시작]');
+    LogService.add('[🟢 위치 스트림 시작]');
   }
   void _stopLocationStream() {
     _positionStream?.cancel();
@@ -114,6 +137,8 @@ class _MapScreenState extends State<MapScreen> {
       _keywordController.clear();
       _mapDisplayState = MapDisplayState.initial;
       _isLocked = false; // 종료 시 잠금 해제
+      _pathPoints.clear();
+      _polylines.clear();
     });
     _stopLocationStream(); // 위치 수신 종료
     print('[⛔ 종료]');
@@ -151,7 +176,7 @@ class _MapScreenState extends State<MapScreen> {
               onMapCreated: _onMapCreated,
               initialCameraPosition: CameraPosition(
                 target: _center,
-                zoom: 14.0,
+                zoom: 10.0,
               ),
               myLocationEnabled: true,
               myLocationButtonEnabled:
@@ -161,6 +186,17 @@ class _MapScreenState extends State<MapScreen> {
               zoomGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
               rotateGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
               tiltGesturesEnabled: !_isLocked && _mapDisplayState == MapDisplayState.running,
+
+              markers: _currentPosition == null
+                  ? {}
+                  : {
+                Marker(
+                  markerId: const MarkerId("current_location"),
+                  position: _currentPosition!,
+                  infoWindow: InfoWindow(title: _uuid),
+                ),
+              },
+              polylines: _polylines,
             ),
 
           // 초기 상태 RUN 버튼
@@ -190,8 +226,11 @@ class _MapScreenState extends State<MapScreen> {
 
           // 잠금된 경우 반투명 어두운 레이어
           if (_isLocked)
-            Container(
-              color: Colors.black.withOpacity(0.3),
+            IgnorePointer(
+              ignoring: true,
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+              ),
             ),
 
           if (_mapDisplayState == MapDisplayState.running ||
@@ -242,6 +281,24 @@ class _MapScreenState extends State<MapScreen> {
                       onPressed: _stopMap,
                       tooltip: '종료',
                     ),
+
+                    IconButton(
+                      icon: Icon(
+                        _isDirectionLocked ? Icons.explore : Icons.explore_off,
+                      ),
+                      iconSize: 60.0,
+                      color: _isDirectionLocked ? Colors.deepPurple : Colors.grey,
+                      onPressed: () {
+                        setState(() {
+                          _isDirectionLocked = !_isDirectionLocked;
+                        });
+                        LogService.add(_isDirectionLocked ? '[📍 방향 고정 ON]' : '[📍 방향 고정 OFF]');
+                      },
+                      tooltip: _isDirectionLocked ? '방향 고정 해제' : '방향 고정',
+                    ),
+
+
+
                   ],
                 ),
               ),
